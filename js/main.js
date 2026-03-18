@@ -1,27 +1,56 @@
 // ═══════════════════════════════════════════
-// NAVBAR
+// PRELOADER
 // ═══════════════════════════════════════════
-const navbar = document.getElementById('navbar');
-window.addEventListener('scroll', () => {
-  navbar.classList.toggle('scrolled', window.scrollY > 30);
+window.addEventListener('load', () => {
+  const preloader = document.getElementById('preloader');
+  if (preloader) setTimeout(() => preloader.classList.add('hidden'), 500);
 });
 
 // ═══════════════════════════════════════════
-// HAMBURGER MENU
+// NAVBAR SCROLL
+// ═══════════════════════════════════════════
+const navbar = document.getElementById('navbar');
+const backToTop = document.getElementById('backToTop');
+
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  navbar.classList.toggle('scrolled', y > 40);
+  backToTop.classList.toggle('visible', y > 500);
+}, { passive: true });
+
+// ═══════════════════════════════════════════
+// BACK TO TOP
+// ═══════════════════════════════════════════
+backToTop.addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ═══════════════════════════════════════════
+// HAMBURGER / MOBILE MENU
 // ═══════════════════════════════════════════
 const hamburger = document.getElementById('hamburger');
 const mobileMenu = document.getElementById('mobileMenu');
+
+function closeMenu() {
+  hamburger.classList.remove('open');
+  mobileMenu.classList.remove('open');
+  hamburger.setAttribute('aria-expanded', 'false');
+  document.body.style.overflow = '';
+}
+
 hamburger.addEventListener('click', () => {
-  hamburger.classList.toggle('open');
+  const isOpen = hamburger.classList.toggle('open');
   mobileMenu.classList.toggle('open');
-  document.body.style.overflow = mobileMenu.classList.contains('open') ? 'hidden' : '';
+  hamburger.setAttribute('aria-expanded', isOpen);
+  document.body.style.overflow = isOpen ? 'hidden' : '';
 });
-document.querySelectorAll('.mobile-menu [data-page]').forEach(link => {
-  link.addEventListener('click', () => {
-    hamburger.classList.remove('open');
-    mobileMenu.classList.remove('open');
-    document.body.style.overflow = '';
-  });
+
+document.querySelectorAll('.mobile-menu [data-page], .mobile-menu .mobile-cta-btn').forEach(link => {
+  link.addEventListener('click', closeMenu);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && mobileMenu.classList.contains('open')) closeMenu();
 });
 
 // ═══════════════════════════════════════════
@@ -32,13 +61,16 @@ function showPage(pageId) {
   document.querySelectorAll('[data-page]').forEach(a => a.classList.remove('active'));
 
   const page = document.getElementById('page-' + pageId);
-  if (page) page.classList.add('active');
+  if (page) {
+    page.classList.add('active');
+    page.style.animation = 'none';
+    page.offsetHeight;
+    page.style.animation = '';
+  }
 
-  document.querySelectorAll(`[data-page="${pageId}"]`).forEach(a => a.classList.add('active'));
-
+  document.querySelectorAll('[data-page="' + pageId + '"]').forEach(a => a.classList.add('active'));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // Re-observe reveals after page switch
   setTimeout(() => {
     observeReveals();
     if (pageId === 'home') startCounters();
@@ -65,11 +97,11 @@ function observeReveals() {
   const io = new IntersectionObserver((entries) => {
     entries.forEach((entry, i) => {
       if (entry.isIntersecting) {
-        setTimeout(() => entry.target.classList.add('visible'), i * 70);
+        setTimeout(() => entry.target.classList.add('visible'), i * 60);
         io.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.08 });
+  }, { threshold: 0.06 });
   reveals.forEach(el => io.observe(el));
 }
 
@@ -77,32 +109,33 @@ function observeReveals() {
 // ANIMATED COUNTERS
 // ═══════════════════════════════════════════
 let countersStarted = false;
-function animateCounter(el, target, duration = 1800) {
+function animateCounter(el, target, duration) {
+  duration = duration || 1800;
   const start = performance.now();
-  const isPlus = el.dataset.suffix === '+';
+  const suffix = el.dataset.suffix || '';
   const update = (now) => {
     const progress = Math.min((now - start) / duration, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
-    const value = Math.round(eased * target);
-    el.textContent = value + (isPlus ? '+' : '');
+    el.textContent = Math.round(eased * target) + suffix;
     if (progress < 1) requestAnimationFrame(update);
   };
   requestAnimationFrame(update);
 }
+
 function startCounters() {
   if (countersStarted) return;
   countersStarted = true;
   document.querySelectorAll('[data-count]').forEach(el => {
-    animateCounter(el, parseInt(el.dataset.count));
+    animateCounter(el, parseInt(el.dataset.count, 10));
   });
 }
 
 // ═══════════════════════════════════════════
-// SECTOR TABS (Services page)
+// SECTOR TABS
 // ═══════════════════════════════════════════
-document.querySelectorAll('.sector-tab').forEach(tab => {
+document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.sector-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.sector-panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     const target = document.getElementById(tab.dataset.sector);
@@ -112,54 +145,84 @@ document.querySelectorAll('.sector-tab').forEach(tab => {
 });
 
 // ═══════════════════════════════════════════
-// CONTACT FORM → WhatsApp (076 332 3230)
+// CONTACT FORM → WhatsApp
 // ═══════════════════════════════════════════
-const WHATSAPP_NUMBER = '27763323230'; // South Africa: 076 332 3230
+const WHATSAPP_NUMBER = '27763323230';
+
+function validateForm(form) {
+  let valid = true;
+  form.querySelectorAll('.form-error').forEach(e => e.classList.remove('visible'));
+  form.querySelectorAll('.error').forEach(e => e.classList.remove('error'));
+
+  const name = form.querySelector('[name="name"]');
+  const phone = form.querySelector('[name="phone"]');
+  const service = form.querySelector('[name="service"]');
+
+  if (!name.value.trim()) {
+    name.classList.add('error');
+    document.getElementById('nameError').classList.add('visible');
+    valid = false;
+  }
+  if (!phone.value.trim()) {
+    phone.classList.add('error');
+    document.getElementById('phoneError').classList.add('visible');
+    valid = false;
+  }
+  if (!service.value) {
+    service.classList.add('error');
+    document.getElementById('serviceError').classList.add('visible');
+    valid = false;
+  }
+  return valid;
+}
 
 function buildWhatsAppMessage(form) {
-  const name = (form.querySelector('[name="name"]') || {}).value || '';
-  const phone = (form.querySelector('[name="phone"]') || {}).value || '';
-  const email = (form.querySelector('[name="email"]') || {}).value || '';
-  const service = (form.querySelector('[name="service"]') || {}).value || '';
-  const message = (form.querySelector('[name="message"]') || {}).value || '';
+  const get = (n) => (form.querySelector('[name="' + n + '"]') || {}).value || '';
   const lines = [
     '*New quote request – Khesekho Electrical*',
     '',
-    '*Name:* ' + name,
-    '*Phone:* ' + phone,
-    email ? '*Email:* ' + email : '',
-    service ? '*Service:* ' + service : '',
-    message ? '*Message:* ' + message : ''
+    '*Name:* ' + get('name'),
+    '*Phone:* ' + get('phone'),
+    get('email') ? '*Email:* ' + get('email') : '',
+    get('service') ? '*Service:* ' + get('service') : '',
+    get('message') ? '*Message:* ' + get('message') : ''
   ].filter(Boolean);
   return lines.join('\n');
 }
+
+document.querySelectorAll('#contactForm input, #contactForm select').forEach(input => {
+  input.addEventListener('input', () => {
+    input.classList.remove('error');
+    const err = input.closest('.form-group').querySelector('.form-error');
+    if (err) err.classList.remove('visible');
+  });
+});
 
 const contactForm = document.getElementById('contactForm');
 if (contactForm) {
   contactForm.addEventListener('submit', function(e) {
     e.preventDefault();
+    if (!validateForm(this)) return;
+
     const btn = this.querySelector('.btn-submit');
     const success = document.getElementById('formSuccess');
+
     btn.textContent = 'Opening WhatsApp...';
     btn.disabled = true;
 
     const text = buildWhatsAppMessage(this);
-    const url = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text);
-    window.open(url, '_blank');
+    window.open('https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text), '_blank');
 
-    btn.textContent = 'Send Message ✓';
+    btn.innerHTML = 'Sent <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px"><polyline points="20 6 9 17 4 12"/></svg>';
     btn.style.background = 'linear-gradient(135deg, #059669, #10B981)';
-    if (success) success.style.display = 'block';
-    success.textContent = "✅ Opening WhatsApp — send the message there. We'll reply shortly.";
+    if (success) success.classList.add('visible');
     contactForm.reset();
+
     setTimeout(() => {
-      btn.textContent = 'Send Message →';
+      btn.innerHTML = 'Send via WhatsApp <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
       btn.style.background = '';
       btn.disabled = false;
-      if (success) {
-        success.style.display = 'none';
-        success.textContent = "✅ Message sent! We'll be in touch shortly.";
-      }
+      if (success) success.classList.remove('visible');
     }, 5000);
   });
 }
